@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>掷骰子 · 今日手气</title>
+<style>
+:root{
+  --bg:#12100e; --ink:#e8dcc3; --ink-dim:#9c8f78;
+  --gold:#c9a45c; --gold-bright:#e6c87e; --red:#b03a2e; --red-bright:#d45b4a;
+  --card:#201c17; --line:#3a332a;
+}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{
+  font-family:"STKaiti","KaiTi","楷体","Noto Serif SC",serif;
+  background:radial-gradient(1200px 800px at 50% -10%,#241f18 0%,var(--bg) 60%);
+  color:var(--ink); min-height:100vh; padding-bottom:60px;
+}
+.wrap{max-width:640px;margin:0 auto;padding:24px 18px;text-align:center}
+header{padding:26px 0 6px}
+header .dice-ico{font-size:52px;filter:grayscale(.2)}
+header h1{font-size:30px;letter-spacing:12px;color:var(--gold);font-weight:normal;margin-top:8px}
+header p{color:var(--ink-dim);font-size:14px;margin-top:8px;letter-spacing:3px}
+
+.scene{
+  width:220px;height:220px;margin:40px auto 10px;perspective:900px;position:relative;
+}
+.shadow{
+  position:absolute;left:50%;bottom:6px;width:120px;height:20px;transform:translateX(-50%);
+  background:radial-gradient(ellipse at center,rgba(0,0,0,.55),transparent 70%);
+  animation:shadowPulse 1.4s ease infinite paused;
+}
+.scene.rolling .shadow{animation-play-state:running}
+@keyframes shadowPulse{0%,100%{transform:translateX(-50%) scale(1);opacity:.8}50%{transform:translateX(-50%) scale(.6);opacity:.4}}
+.cube-wrap{position:absolute;inset:0;display:flex;align-items:center;justify-content:center}
+.scene.rolling .cube-wrap{animation:bounce 1.4s ease}
+@keyframes bounce{
+  0%{transform:translateY(0)}
+  30%{transform:translateY(-46px)}
+  55%{transform:translateY(0)}
+  72%{transform:translateY(-18px)}
+  86%{transform:translateY(0)}
+  94%{transform:translateY(-6px)}
+  100%{transform:translateY(0)}
+}
+.cube{
+  width:120px;height:120px;position:relative;transform-style:preserve-3d;
+  transform:rotateX(-20deg) rotateY(30deg);
+  transition:transform 1.4s cubic-bezier(.16,.84,.3,1);
+}
+.face{
+  position:absolute;inset:0;border-radius:18px;
+  background:linear-gradient(145deg,#f7f0df,#ddd0b4);
+  border:1px solid #b9a87f;
+  box-shadow:inset 0 0 18px rgba(120,95,50,.35);
+  display:flex;align-items:center;justify-content:center;
+}
+.face svg{display:block}
+.btn{
+  font-family:inherit;background:linear-gradient(180deg,#8e2f24,#6e2118);border:1px solid #a03d30;color:#f5e6c8;
+  font-size:18px;letter-spacing:10px;padding:13px 46px 13px 56px;border-radius:10px;cursor:pointer;margin-top:26px;
+}
+.btn:hover{filter:brightness(1.15)}
+.btn:disabled{opacity:.55;cursor:wait}
+.result{margin-top:26px;min-height:96px}
+.result .num{font-size:22px;color:var(--gold-bright);letter-spacing:4px}
+.result .num b{font-size:40px;margin:0 6px}
+.result .phrase{margin-top:10px;font-size:16px;color:var(--ink-dim);letter-spacing:2px;line-height:1.8}
+.result.pop{animation:pop .5s ease}
+@keyframes pop{0%{transform:scale(.6);opacity:0}70%{transform:scale(1.08)}100%{transform:scale(1);opacity:1}}
+.history{margin-top:22px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap;min-height:40px}
+.hitem{
+  width:34px;height:34px;border-radius:8px;border:1px solid var(--line);background:#171410;
+  display:flex;align-items:center;justify-content:center;
+}
+.hitem svg{width:26px;height:26px}
+.hitem:first-child{border-color:var(--gold);box-shadow:0 0 10px rgba(201,164,92,.35)}
+.tip{margin-top:24px;font-size:12.5px;color:#6f6656;letter-spacing:1px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="dice-ico">🎲</div>
+    <h1>擲 骰 子</h1>
+    <p>六面皆緣 · 一擲千金</p>
+  </header>
+
+  <div class="scene" id="scene">
+    <div class="shadow"></div>
+    <div class="cube-wrap">
+      <div class="cube" id="cube"></div>
+    </div>
+  </div>
+
+  <button class="btn" id="roll">擲</button>
+
+  <div class="result" id="result">
+    <div class="num" id="rNum"></div>
+    <div class="phrase" id="rPhrase"></div>
+  </div>
+  <div class="history" id="history"></div>
+
+  <div class="tip">點按按鈕或骰子即可擲出 · 每次結果隨機 · 僅供娛樂</div>
+</div>
+
+<script>
+/* ============ 生成 SVG 骰子面 ============ */
+const PIPS={1:[5],2:[1,9],3:[1,5,9],4:[1,3,7,9],5:[1,3,5,7,9],6:[1,3,4,6,7,9]};
+const GRID=i=>({x:26+((i-1)%3)*34,y:26+(Math.floor((i-1)/3))*34});
+function faceSVG(n){
+  let circles="";
+  for(const p of PIPS[n]){const {x,y}=GRID(p);circles+=`<circle cx="${x}" cy="${y}" r="11" fill="#3a2f22"/>`;}
+  return `<svg viewBox="0 0 120 120" width="120" height="120">${circles}</svg>`;
+}
+/* 各面在立方體上的朝向 */
+const FACE_POS={
+  1:"rotateY(0deg)", 6:"rotateY(180deg)", 3:"rotateY(90deg)",
+  4:"rotateY(-90deg)", 2:"rotateX(90deg)", 5:"rotateX(-90deg)"
+};
+const cube=document.getElementById("cube");
+for(let n=1;n<=6;n++){
+  const f=document.createElement("div");
+  f.className="face";
+  f.style.transform=FACE_POS[n]+" translateZ(60px)";
+  f.innerHTML=faceSVG(n);
+  cube.appendChild(f);
+}
+
+/* ============ 擲骰邏輯 ============ */
+/* 讓某一面轉到正前方所需的立方體角度 */
+const TARGET={1:[0,0],2:[-90,0],5:[90,0],3:[0,-90],4:[0,90],6:[0,180]};
+const PHRASES={
+  1:["一點定乾坤","獨占鰲頭，時機只此一個，穩穩抓住。"],
+  2:["雙喜臨門","好事成雙，合作運極佳，宜結伴同行。"],
+  3:["三星高照","福祿壽齊至，穩中有升，宜守正出奇。"],
+  4:["四平八穩","根基牢固，大事可託，宜籌劃長遠。"],
+  5:["五穀豐登","財氣與人緣兩旺，放手去做，收穫可期。"],
+  6:["六六大順","鴻運當頭，萬事亨通，所求皆如意。"]
+};
+let cur={x:-20,y:30},busy=false,count=0;
+const scene=document.getElementById("scene"),btn=document.getElementById("roll");
+function apply(){cube.style.transform=`rotateX(${cur.x}deg) rotateY(${cur.y}deg)`}
+function roll(){
+  if(busy)return;busy=true;
+  btn.disabled=true;
+  document.getElementById("result").classList.remove("pop");
+  const n=1+Math.floor(Math.random()*6);
+  const [bx,by]=TARGET[n];
+  /* 在抵達目標角度之前，隨機多轉 2~3 整圈，兩軸交錯翻滾 */
+  const spins=()=>360*(2+Math.floor(Math.random()*2));
+  cur.x=Math.ceil((cur.x-bx)/360)*360+bx+spins();
+  cur.y=Math.ceil((cur.y-by)/360)*360+by+spins();
+  scene.classList.add("rolling");
+  apply();
+  setTimeout(()=>{
+    scene.classList.remove("rolling");
+    const [t1,t2]=PHRASES[n];
+    const r=document.getElementById("result");
+    document.getElementById("rNum").innerHTML=`擲出 <b>${n}</b> 點`;
+    document.getElementById("rPhrase").innerHTML=`${t1}・${t2}`;
+    r.classList.add("pop");
+    addHistory(n);
+    busy=false;btn.disabled=false;
+  },1450);
+}
+function addHistory(n){
+  const h=document.getElementById("history");
+  const d=document.createElement("div");
+  d.className="hitem";
+  d.innerHTML=`<svg viewBox="0 0 120 120">${PIPS[n].map(p=>{const{x,y}=GRID(p);return `<circle cx="${x}" cy="${y}" r="13" fill="#e6c87e"/>`}).join("")}</svg>`;
+  h.prepend(d);
+  while(h.children.length>10)h.lastChild.remove();
+}
+btn.onclick=roll;
+cube.parentElement.onclick=roll;
+apply();
+</script>
+</body>
+</html>
